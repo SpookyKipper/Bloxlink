@@ -59,9 +59,7 @@ class Roblox(Bloxlink.Module):
         if roblox_cached_data:
             return roblox_cached_data
 
-        _, response = await fetch(f"{API_URL}/users/get-by-username/?username={username}", raise_on_failure=True)
-
-        json_data = await response.json()
+        json_data, response = await fetch(f"{API_URL}/users/get-by-username/?username={username}", json=True, raise_on_failure=True)
 
         if json_data.get("success") is False:
             raise RobloxNotFound
@@ -82,9 +80,7 @@ class Roblox(Bloxlink.Module):
         if roblox_user and roblox_user.verified:
             return roblox_user.id, roblox_user.username
 
-        _, response = await fetch(f"{API_URL}/users/{roblox_id}", raise_on_failure=True)
-
-        json_data = await response.json()
+        json_data, response = await fetch(f"{API_URL}/users/{roblox_id}", json=True, raise_on_failure=True)
 
         if json_data.get("success") is False:
             raise RobloxNotFound
@@ -1329,12 +1325,7 @@ class Roblox(Bloxlink.Module):
                                 bound_roles = bind_data.get("roles")
                                 bind_remove_roles = bind_data.get("removeRoles") or []
 
-                                text, response_ = await fetch(f"https://inventory.roblox.com/v1/users/{roblox_user.id}/items/{category_title}/{bind_id}", raise_on_failure=False)
-
-                                try:
-                                    json_data = json.loads(text)
-                                except json.decoder.JSONDecodeError:
-                                    raise RobloxAPIError
+                                json_data, response_ = await fetch(f"https://inventory.roblox.com/v1/users/{roblox_user.id}/items/{category_title}/{bind_id}", json=True, raise_on_failure=False)
 
                                 if response_.status != 200:
                                     vg_errors = json_data.get("errors", [])
@@ -1716,30 +1707,20 @@ class Roblox(Bloxlink.Module):
             return game
 
         if game_id:
-            text, _ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={game_id}", raise_on_failure=False)
+            json_data, _ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={game_id}", json=True, raise_on_failure=False)
 
-            try:
-                json_data = json.loads(text)
-            except json.decoder.JSONDecodeError:
-                raise RobloxAPIError
-            else:
-                if json_data.get("AssetTypeId", 0) == 9:
-                    game = Game(str(game_id), json_data)
+            if json_data.get("AssetTypeId", 0) == 9:
+                game = Game(str(game_id), json_data)
 
-                    await cache_set(f"games:{game_id}", game)
+                await cache_set(f"games:{game_id}", game)
 
-                    return game
+                return game
         else:
-            text, _ = await fetch(f"https://games.roblox.com/v1/games/list?model.keyword={game_name}", raise_on_failure=False)
+            json_data, _ = await fetch(f"https://games.roblox.com/v1/games/list?model.keyword={game_name}", json=True, raise_on_failure=False)
 
-            try:
-                json_data = json.loads(text)
-            except json.decoder.JSONDecodeError:
-                raise RobloxAPIError
-            else:
-                if json_data.get("games"):
-                    game_data = json_data["games"][0]
-                    game = Game(str(game_data["placeId"]), game_data)
+            if json_data.get("games"):
+                game_data = json_data["games"][0]
+                game = Game(str(game_data["placeId"]), game_data)
 
 
         raise RobloxNotFound
@@ -1752,19 +1733,14 @@ class Roblox(Bloxlink.Module):
         if item:
             return item
 
-        text, _ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={item_id}", raise_on_failure=False)
+        json_data, _ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={item_id}", json=True, raise_on_failure=False)
 
-        try:
-            json_data = json.loads(text)
-        except json.decoder.JSONDecodeError:
-            raise RobloxAPIError
-        else:
-            if json_data.get("AssetTypeId", 0) != 6:
-                item = RobloxItem(item_id, json_data)
+        if json_data.get("AssetTypeId", 0) != 6:
+            item = RobloxItem(item_id, json_data)
 
-                await cache_set(f"catalog_items:{item_id}", item)
+            await cache_set(f"catalog_items:{item_id}", item)
 
-                return item
+            return item
 
 
         raise RobloxNotFound
@@ -1782,50 +1758,35 @@ class Roblox(Bloxlink.Module):
             else:
                 return group
 
-        roleset_data, roleset_response = await fetch(f"{GROUP_API}/v1/groups/{group_id}/roles", raise_on_failure=False)
+        json_data, roleset_response = await fetch(f"{GROUP_API}/v1/groups/{group_id}/roles", json=True, raise_on_failure=False)
 
-        try:
-            json_data = json.loads(roleset_data)
-        except json.decoder.JSONDecodeError:
-            raise RobloxAPIError
-        else:
-            if roleset_response.status == 200:
-                if full_group:
-                    group_data, group_data_response = await fetch(f"{GROUP_API}/v1/groups/{group_id}", raise_on_failure=False)
+        if roleset_response.status == 200:
+            if full_group:
+                group_data, group_data_response = await fetch(f"{GROUP_API}/v1/groups/{group_id}", json=True, raise_on_failure=False)
 
-                    if group_data_response.status == 200:
-                        try:
-                            group_data = json.loads(group_data)
-                        except json.decoder.JSONDecodeError:
-                            raise RobloxAPIError
+                if group_data_response.status == 200:
+                    json_data.update(group_data)
 
-                        json_data.update(group_data)
+                emblem_data, emblem_data_response = await fetch(f"{THUMBNAIL_API}/v1/groups/icons?groupIds={group_id}&size=150x150&format=Png&isCircular=false", json=True, raise_on_failure=False)
 
-                    emblem_data, emblem_data_response = await fetch(f"{THUMBNAIL_API}/v1/groups/icons?groupIds={group_id}&size=150x150&format=Png&isCircular=false", raise_on_failure=False)
+                if emblem_data_response.status == 200:
+                    emblem_data = emblem_data.get("data")
 
-                    if emblem_data_response.status == 200:
-                        try:
-                            emblem_data = json.loads(emblem_data)
-                        except json.decoder.JSONDecodeError:
-                            raise RobloxAPIError
-                        else:
-                            emblem_data = emblem_data.get("data")
+                    if emblem_data:
+                        emblem_data = emblem_data[0]
+                        json_data.update({"imageUrl": emblem_data.get("imageUrl")})
 
-                            if emblem_data:
-                                emblem_data = emblem_data[0]
-                                json_data.update({"imageUrl": emblem_data.get("imageUrl")})
+            if not group:
+                group = Group(group_id=group_id, group_data=json_data)
+            else:
+                group.load_json(json_data)
 
-                if not group:
-                    group = Group(group_id=group_id, group_data=json_data)
-                else:
-                    group.load_json(json_data)
+            await cache_set(f"groups:{group_id}", group)
 
-                await cache_set(f"groups:{group_id}", group)
+            return group
 
-                return group
-
-            elif roleset_response.status >= 500:
-                raise RobloxDown
+        elif roleset_response.status >= 500:
+            raise RobloxDown
 
         raise RobloxNotFound
 
@@ -2459,15 +2420,10 @@ class Group(Bloxlink.Module):
         if self.rolesets:
             return
 
-        roleset_data, roleset_response = await fetch(f"{GROUP_API}/v1/groups/{self.group_id}/roles")
+        group_data, roleset_response = await fetch(f"{GROUP_API}/v1/groups/{self.group_id}/roles", json=True)
 
         if roleset_response.status == 200:
-            try:
-                group_data = json.loads(roleset_data)
-            except json.JSONDecodeError:
-                pass
-            else:
-                self.load_json(group_data)
+            self.load_json(group_data)
 
         elif roleset_response.status >= 500:
             raise RobloxDown
@@ -2674,19 +2630,13 @@ class RobloxUser(Bloxlink.Module):
             if roblox_data["avatar"] is not None:
                 avatar_url = roblox_data["avatar"]
             else:
-                avatar_url, _ = await fetch(f"{BASE_URL}/bust-thumbnail/json?userId={roblox_data['id']}&height=180&width=180")
+                avatar_url, _ = await fetch(f"{BASE_URL}/bust-thumbnail/json?userId={roblox_data['id']}&height=180&width=180", json=True)
+                avatar_url = avatar_url.get("Url")
 
-                try:
-                    avatar_url = json.loads(avatar_url)
-                except json.decoder.JSONDecodeError:
-                    raise RobloxAPIError
-                else:
-                    avatar_url = avatar_url.get("Url")
+                if roblox_user:
+                    roblox_user.avatar = avatar_url
 
-                    if roblox_user:
-                        roblox_user.avatar = avatar_url
-
-                    roblox_data["avatar"] = avatar_url
+                roblox_data["avatar"] = avatar_url
 
             if embed:
                 embed[0].set_thumbnail(url=avatar_url)
@@ -2702,12 +2652,10 @@ class RobloxUser(Bloxlink.Module):
                 premium = False
                 badges = set()
 
-                data, _ = await fetch(f"{BASE_URL}/badges/roblox?userId={roblox_data['id']}")
+                data, _ = await fetch(f"{BASE_URL}/badges/roblox?userId={roblox_data['id']}", json=True) # FIXME
 
-                try:
-                    data = json.loads(data)
-                except json.decoder.JSONDecodeError:
-                    raise RobloxAPIError
+                for badge in data.get("RobloxBadges", []):
+                    badges.add(badge["Name"])
 
                 roblox_data["badges"] = badges
                 roblox_data["premium"] = premium
@@ -2731,20 +2679,15 @@ class RobloxUser(Bloxlink.Module):
                 groups = roblox_data["groups"]
             else:
                 groups = {}
-                group_json, _ = await fetch(f"{GROUP_API}/v2/users/{roblox_data['id']}/groups/roles")
+                group_json, _ = await fetch(f"{GROUP_API}/v2/users/{roblox_data['id']}/groups/roles", json=True)
 
-                try:
-                    group_json = json.loads(group_json)
-                except json.decoder.JSONDecodeError:
-                    raise RobloxAPIError
-                else:
-                    for group_data in group_json.get("data", []):
-                        group_data, my_roles = group_data.get("group"), group_data.get("role")
-                        group_id = str(group_data["id"])
-                        groups[group_id] = Group(group_id, group_data=group_data, my_roles=my_roles)
+                for group_data in group_json.get("data", []):
+                    group_data, my_roles = group_data.get("group"), group_data.get("role")
+                    group_id = str(group_data["id"])
+                    groups[group_id] = Group(group_id, group_data=group_data, my_roles=my_roles)
 
-                    if roblox_user:
-                        roblox_user.groups = groups
+                if roblox_user:
+                    roblox_user.groups = groups
 
             if embed and (everything or "groups" in args):
                 group_ranks = set()
@@ -2796,22 +2739,17 @@ class RobloxUser(Bloxlink.Module):
                 join_date = None
                 display_name = None
 
-                data, _ = await fetch(f"https://users.roblox.com/v1/users/{roblox_data['id']}")
+                profile, _ = await fetch(f"https://users.roblox.com/v1/users/{roblox_data['id']}", json=True)
 
-                try:
-                    profile = json.loads(data)
-                except json.decoder.JSONDecodeError:
-                    raise RobloxAPIError
-                else:
-                    description = profile.get("description")
-                    created = profile.get("created")
-                    banned = profile.get("isBanned")
-                    display_name = profile.get("displayName")
+                description = profile.get("description")
+                created = profile.get("created")
+                banned = profile.get("isBanned")
+                display_name = profile.get("displayName")
 
-                    roblox_data["description"] = description
-                    roblox_data["created"] = created
-                    roblox_data["banned"] = banned
-                    roblox_data["display_name"] = display_name
+                roblox_data["description"] = description
+                roblox_data["created"] = created
+                roblox_data["banned"] = banned
+                roblox_data["display_name"] = display_name
 
             if age is None:
                 today = datetime.today()
@@ -2880,20 +2818,15 @@ class RobloxUser(Bloxlink.Module):
                 dev_forum_profile = roblox_data["dev_forum"]
             else:
                 try:
-                    data, response = await fetch(f"https://devforum.roblox.com/u/by-external/{roblox_data['id']}.json", raise_on_failure=False, timeout=5, retry=0)
+                    dev_forum_profile_, response = await fetch(f"https://devforum.roblox.com/u/by-external/{roblox_data['id']}.json", json=True, raise_on_failure=False, timeout=5, retry=0)
 
                     if response.status == 200:
-                        try:
-                            dev_forum_profile_ = json.loads(data)
-                        except json.decoder.JSONDecodeError:
-                            raise RobloxAPIError
-                        else:
-                            dev_forum_profile = dev_forum_profile_.get("user")
+                        dev_forum_profile = dev_forum_profile_.get("user")
 
-                            roblox_data["dev_forum"] = dev_forum_profile
+                        roblox_data["dev_forum"] = dev_forum_profile
 
-                            if roblox_user:
-                                roblox_user.dev_forum = roblox_data["dev_forum"]
+                        if roblox_user:
+                            roblox_user.dev_forum = roblox_data["dev_forum"]
 
                 except RobloxDown:
                     pass

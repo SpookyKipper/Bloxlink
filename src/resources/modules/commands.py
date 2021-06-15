@@ -38,7 +38,7 @@ class Commands(Bloxlink.Module):
 
         if CLUSTER_ID == 0:
             slash_commands = [self.slash_command_to_json(c) for c in commands.values() if c.slash_enabled]
-            text, response = await fetch(COMMANDS_URL, "PUT", json=slash_commands, headers={"Authorization": f"Bot {TOKEN}"}, raise_on_failure=False)
+            text, response = await fetch(COMMANDS_URL, "PUT", body=slash_commands, headers={"Authorization": f"Bot {TOKEN}"}, raise_on_failure=False)
 
             if response.status == 200:
                 Bloxlink.log("Successfully synced Slash Commands")

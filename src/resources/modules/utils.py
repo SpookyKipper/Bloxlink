@@ -4,6 +4,7 @@ from ..structures import Bloxlink # pylint: disable=import-error, no-name-in-mod
 from ..exceptions import RobloxAPIError, RobloxDown, RobloxNotFound, CancelCommand # pylint: disable=import-error, no-name-in-module
 from config import PREFIX # pylint: disable=import-error, no-name-in-module
 from ..constants import RELEASE, HTTP_RETRY_LIMIT # pylint: disable=import-error, no-name-in-module
+from ..secrets import PROXY_URL # pylint: disable=import-error, no-name-in-module
 from discord.errors import NotFound, Forbidden
 from discord import Embed
 from aiohttp.client_exceptions import ClientOSError, ServerDisconnectedError
@@ -63,15 +64,30 @@ class Utils(Bloxlink.Module):
                 except (Forbidden, NotFound):
                     pass
 
-
-    async def fetch(self, url, method="GET", params=None, headers=None, json=None, text=True, bytes=False, raise_on_failure=True, retry=HTTP_RETRY_LIMIT, timeout=20):
+    async def fetch(self, url, method="GET", params=None, headers=None, body=None, text=True, json=True, bytes=False, raise_on_failure=True, retry=HTTP_RETRY_LIMIT, timeout=20):
         params  = params or {}
         headers = headers or {}
+        new_json = {}
+        proxied = False
+
+        if PROXY_URL and "roblox.com" in url:
+            old_url = url
+            new_json["url"] = url
+            new_json["data"] = body or {}
+            url = PROXY_URL
+            proxied = True
+            method = "POST"
+
+            if RELEASE == "LOCAL":
+                print(f"{old_url} -> {url}")
+        else:
+            if RELEASE == "LOCAL":
+                print(f"Making request to {url} with method {method}")
+
+            new_json = body
+            old_url = url
 
         url = requote_uri(url)
-
-        if RELEASE == "LOCAL":
-            Bloxlink.log(f"Making HTTP request: {url}")
 
         for k, v in params.items():
             if isinstance(v, bool):
@@ -79,46 +95,48 @@ class Utils(Bloxlink.Module):
 
         try:
             async with a_timeout(timeout): # I noticed sometimes the aiohttp timeout parameter doesn't work. This is added as a backup.
-                async with self.session.request(method, url, json=json, params=params, headers=headers, timeout=timeout) as response:
+                async with self.session.request(method, url, json=new_json, params=params, headers=headers, timeout=timeout) as response:
+                    if proxied:
+                        response_json = await response.json()
+                        response_body = response_json["req"]["body"]
+                        response_status = response_json["req"]["status"]
+                        response.status = response_status
+
+                        if raise_on_failure:
+                            if response_status == 503:
+                                raise RobloxDown
+                            elif response_status == 404:
+                                raise RobloxNotFound
+                            elif response_status >= 400:
+                                raise RobloxAPIError
+
+                        if json:
+                            if isinstance(response_body, dict):
+                                return response_body, response
+                            else:
+                                return {}, response
+
+                        return response_body, response
+
                     if text:
                         text = await response.text()
 
-                    if text == "The service is unavailable." or response.status == 503:
-                        raise RobloxDown
-
-                    if raise_on_failure:
-                        if response.status >= 500:
-                            if retry != 0:
-                                retry -= 1
-                                await asyncio.sleep(1.0)
-
-                                return await self.fetch(url, raise_on_failure=raise_on_failure, bytes=bytes, text=text, params=params, headers=headers, retry=retry, timeout=timeout)
-
-                            raise RobloxAPIError
-
-                        elif response.status == 400:
-                            raise RobloxAPIError
-                        elif response.status == 404:
-                            raise RobloxNotFound
-
-                    if bytes:
-                        return await response.read(), response
-                    elif text:
                         return text, response
-                    else:
-                        return response
 
-        except ServerDisconnectedError:
-            if retry != 0:
-                return await self.fetch(url, raise_on_failure=raise_on_failure, retry=retry-1, timeout=timeout)
-            else:
-                raise ServerDisconnectedError
+                    elif json:
+                        try:
+                            json = await response.json()
+                        except aiohttp.client_exceptions.ContentTypeError:
+                            print(await response.text(), flush=True)
 
-        except ClientOSError:
-            # TODO: raise HttpError with non-roblox URLs
-            raise RobloxAPIError
+                            raise
+
+                        return json, response
+
+                    return response
 
         except asyncio.TimeoutError:
+            print(f"URL {old_url} timed out", flush=True)
             raise RobloxDown
 
 

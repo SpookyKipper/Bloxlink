@@ -648,21 +648,17 @@ class BindCommand(Bloxlink.Module):
 
             if bind_choice == "asset":
                 try:
-                    text, response_ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={bind_id}")
+                    json_data, response_ = await fetch(f"{API_URL}/marketplace/productinfo?assetId={bind_id}", json=True)
                 except RobloxNotFound:
                     raise Error(f"An Asset with ID `{bind_id}` does not exist.")
-
-                json_data = await response_.json()
 
                 display_name = json_data.get("Name")
 
             elif bind_choice == "badge":
                 try:
-                    text, response_ = await fetch(f"https://badges.roblox.com/v1/badges/{bind_id}")
+                    json_data, response_ = await fetch(f"https://badges.roblox.com/v1/badges/{bind_id}", json=True)
                 except RobloxNotFound:
                     raise Error(f"A Badge with ID `{bind_id}` does not exist.")
-
-                json_data = await response_.json()
 
                 display_name = json_data.get("displayName")
 
@@ -671,17 +667,14 @@ class BindCommand(Bloxlink.Module):
                 bind_choice_plural = "gamePasses"
 
                 try:
-                    text, response_ = await fetch(f"http://api.roblox.com/marketplace/game-pass-product-info?gamePassId={bind_id}")
+                    json_data, response_ = await fetch(f"http://api.roblox.com/marketplace/game-pass-product-info?gamePassId={bind_id}", json=True)
                 except (RobloxNotFound, RobloxAPIError):
                     raise Error(f"A GamePass with ID `{bind_id}` does not exist.")
-
-                json_data = await response_.json()
 
                 if json_data.get("ProductType") != "Game Pass":
                     raise Error(f"A GamePass with ID `{bind_id}` does not exist.")
 
                 display_name = json_data.get("Name")
-
 
             role_binds = guild_data.get("roleBinds") or {}
 
