@@ -229,7 +229,6 @@ class BloxlinkStructure(AutoShardedClient):
     @staticmethod
     def auto_reconnect(instance):
         if instance._instance is None or not instance._instance.is_open():
-            print("reconnecting", flush=True)
             loop.create_task(instance.reconnect())
 
     async def check_database(self, conn):
