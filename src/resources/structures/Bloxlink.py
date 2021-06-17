@@ -24,8 +24,6 @@ except ImportError:
 finally:
     r.set_loop_type("asyncio")
 
-
-
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").upper()
 LABEL = env.get("LABEL", "Bloxlink")
 SHARD_SLEEP_TIME = int(env.get("SHARD_SLEEP_TIME", "5"))
@@ -228,6 +226,11 @@ class BloxlinkStructure(AutoShardedClient):
 
         raise RuntimeError(f"Unable to find module {name_obj} from {dir_name}")
 
+    @staticmethod
+    def auto_reconnect(instance):
+        if instance._instance is None or not instance._instance.is_open():
+            print("reconnecting", flush=True)
+            loop.create_task(instance.reconnect())
 
     async def check_database(self, conn):
         try:
@@ -295,7 +298,7 @@ class BloxlinkStructure(AutoShardedClient):
                         if conn:
                             # check for missing databases/tables
                             await self.check_database(conn)
-
+                            r.Connection.check_open = self.auto_reconnect
                             return
 
                 except asyncio.TimeoutError:
