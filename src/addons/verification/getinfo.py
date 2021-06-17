@@ -58,5 +58,5 @@ class GetinfoCommand(Bloxlink.Module):
             raise Error(f"**{target}** is not linked to Bloxlink.")
         else:
             if not account:
-                raise Message(f"You have no primary account set! Please use `{prefix}switchuser` and set one.", type="info")
+                raise Message(f"This Discord user has no primary account set! They may use `{prefix}switchuser` to set one.", type="info")
 
